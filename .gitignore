@@ -8,6 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
+
+.env.local
 src/llm_translate/domain/prompt.py
 src/llm_translate/domain/types.py
 src/llm_translate/application/translate.py
