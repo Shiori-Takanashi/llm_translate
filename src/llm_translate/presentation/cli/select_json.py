@@ -13,7 +13,7 @@ def select_json() -> None:
 
     files = listup_json(dir_name)
 
-    click.echo("\n翻訳対象のファイルを選択してください:")
+    click.echo("\n翻訳対象のファイルを選択せよ:")
     for i, p in enumerate(files, 1):
         click.echo(f"{i}: {p}")
 

@@ -11,7 +11,7 @@ def _find_project_root(start: Path) -> Path:
         if (current / "pyproject.toml").is_file():
             return current
         if current.parent == current:
-            raise FileNotFoundError("pyproject.toml not found.")
+            raise FileNotFoundError("pyproject.tomlが未発見。")
         current = current.parent
 
 
