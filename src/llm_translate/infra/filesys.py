@@ -15,6 +15,7 @@ def listup_json(dir_name: str) -> list[str]:
         if p.is_file()
     ]
 
+    # filesは空リストではない。
     if not files:
         raise FileNotFoundError("JSONファイルが見つかりません")
 
