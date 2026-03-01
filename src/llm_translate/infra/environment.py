@@ -1,5 +1,3 @@
-"""src/llm_translate/infra/environment.py"""
-
 # src/llm_translate/infra/environment.py
 
 import os
