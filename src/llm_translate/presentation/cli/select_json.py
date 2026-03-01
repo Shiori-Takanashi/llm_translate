@@ -4,6 +4,7 @@ import click
 
 from llm_translate.infra.environment import load_env, require
 from llm_translate.infra.filesys import listup_json
+from llm_translate.application.select.json_usecase import resolve_choice
 
 
 @click.command(name="select-json")
@@ -17,12 +18,8 @@ def select_json() -> None:
     for i, p in enumerate(files, 1):
         click.echo(f"{i}: {p}")
 
-    choice = click.prompt(
-        "番号を入力してください",
-        type=click.IntRange(1, len(files)),
-        show_choices=False,
-    )
+    choice = click.prompt("番号", type=int)
 
-    selected = files[choice - 1]
+    selected = resolve_choice(files, choice)
 
     click.secho(f"選択されたファイル: {selected}")
