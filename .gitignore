@@ -10,3 +10,4 @@ wheels/
 .venv
 src/llm_translate/domain/prompt.py
 src/llm_translate/domain/types.py
+src/llm_translate/application/translate.py
