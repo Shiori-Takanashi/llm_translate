@@ -1,3 +1,5 @@
+# src/llm_translate/application/config.py
+
 from dataclasses import dataclass
 
 
