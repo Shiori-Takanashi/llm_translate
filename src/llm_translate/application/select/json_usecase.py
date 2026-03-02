@@ -1,3 +1,6 @@
+# src/llm_translate/application/select/json_usecase.py
+
+
 def resolve_choice(files: list[str], index: int) -> str:
     # infra/filesys.pyで、
     # filesが空リストではないことは検証済み。
