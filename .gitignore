@@ -10,6 +10,8 @@ wheels/
 .venv
 
 .env.local
+.docs/
+.pytest_cache/
 src/llm_translate/domain/prompt.py
 src/llm_translate/domain/types.py
 src/llm_translate/application/translate.py

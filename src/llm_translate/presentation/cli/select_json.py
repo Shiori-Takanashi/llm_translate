@@ -2,15 +2,15 @@
 
 import click
 
-from llm_translate.infra.environment import load_env, require
 from llm_translate.infra.filesys import listup_json
+from llm_translate.application.config import AppConfig
 from llm_translate.application.select.json_usecase import resolve_choice
 
 
 @click.command(name="select-json")
-def select_json() -> None:
-    load_env()
-    dir_name = require("JSON_DIR")
+@click.pass_obj
+def select_json(config: AppConfig) -> None:
+    dir_name = config.json_dir
 
     files = listup_json(dir_name)
 
