@@ -2,10 +2,9 @@
 
 
 from pathlib import Path
-from functools import lru_cache
 
 
-def _find_project_root(start: Path) -> Path:
+def find_project_root(start: Path) -> Path:
     current = start.resolve()
     while True:
         if (current / "pyproject.toml").is_file():
@@ -13,11 +12,3 @@ def _find_project_root(start: Path) -> Path:
         if current.parent == current:
             raise FileNotFoundError("pyproject.tomlが未発見。")
         current = current.parent
-
-
-@lru_cache
-def get_project_root() -> Path:
-    return _find_project_root(Path(__file__).parent)
-
-
-PROJECT_ROOT = get_project_root()
