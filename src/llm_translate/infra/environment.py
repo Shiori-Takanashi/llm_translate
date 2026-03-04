@@ -10,7 +10,7 @@ def load_env(candidates: list[Path]) -> Path:
 
     try:
         from dotenv import load_dotenv
-    except Exception as e:
+    except (ImportError, ModuleNotFoundError) as e:
         raise ImportError("python-dotenvが未インストール。") from e
 
     load_dotenv(env_file, override=False)
