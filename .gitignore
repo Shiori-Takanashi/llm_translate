@@ -11,6 +11,7 @@ wheels/
 
 .env.local
 .pytest_cache/
+.docs/
 src/llm_translate/domain/prompt.py
 src/llm_translate/domain/types.py
 src/llm_translate/application/translate.py
