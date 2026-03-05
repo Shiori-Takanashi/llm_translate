@@ -11,8 +11,8 @@ from llm_translate.application.select.json_usecase import resolve_choice
 @click.pass_obj
 def select_json(config: AppConfig) -> None:
     dir_name = config.json_dir
-
-    files = listup_json(dir_name)
+    base_path = config.base_path
+    files = listup_json(base_path, dir_name)
 
     click.echo("\n翻訳対象のファイルを選択せよ:")
     for i, p in enumerate(files, 1):

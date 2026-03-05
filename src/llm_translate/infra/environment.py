@@ -1,29 +1,20 @@
 # src/llm_translate/infra/environment.py
-
 import os
+from pathlib import Path
 
-from llm_translate.infra.root import PROJECT_ROOT
 
-
-def load_env() -> None:
-    dot_env_local = PROJECT_ROOT / ".env.local"
-    dot_env = PROJECT_ROOT / ".env"
-
-    env_file = None
-    if dot_env_local.exists():
-        env_file = dot_env_local
-    elif dot_env.exists():
-        env_file = dot_env
-
+def load_env(candidates: list[Path]) -> Path:
+    env_file = next((p for p in candidates if p.is_file()), None)
     if env_file is None:
-        raise FileNotFoundError("envファイルが未存在")
+        raise FileNotFoundError("envファイルが発見不能")
 
     try:
         from dotenv import load_dotenv
+    except (ImportError, ModuleNotFoundError) as e:
+        raise ImportError("python-dotenvが未インストール。") from e
 
-        load_dotenv(env_file, override=False)
-    except Exception:
-        raise ImportError("python-dotenvが未インストール。")
+    load_dotenv(env_file, override=False)
+    return env_file
 
 
 def require(name: str) -> str:
