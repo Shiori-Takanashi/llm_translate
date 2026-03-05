@@ -18,5 +18,5 @@ def listup_json(base_path: Path, search_dirname: str) -> list[Path]:
     return sorted(files)
 
 
-def convert_path_to_display(p: Path, base_path: Path, search_dirname: str) -> str:
-    return str(p.relative_to(base_path / search_dirname))
+def convert_path_to_display(p: Path, base_path: Path) -> str:
+    return str(p.relative_to(base_path))

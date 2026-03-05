@@ -21,12 +21,10 @@ def select_json(config: AppConfig) -> None:
 
     click.echo("\n翻訳対象のファイルを選択せよ:")
     for i, p in enumerate(files, 1):
-        click.echo(f"{i}: {convert_path_to_display(p, base_path, search_dirname)}")
+        click.echo(f"{i}: {convert_path_to_display(p, base_path)}")
 
     choice = click.prompt("番号", type=int)
 
     selected = resolve_choice(files, choice)
 
-    click.secho(
-        f"選択されたファイル: {convert_path_to_display(selected, base_path, search_dirname)}"
-    )
+    click.secho(f"選択されたファイル: {convert_path_to_display(selected, base_path)}")
