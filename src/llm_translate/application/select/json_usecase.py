@@ -1,7 +1,8 @@
 # src/llm_translate/application/select/json_usecase.py
+from pathlib import Path
 
 
-def resolve_choice(files: list[str], index: int) -> str:
+def resolve_choice(files: list[Path], index: int) -> Path:
     # infra/filesys.pyで、
     # filesが空リストではないことは検証済み。
     # だから、ここで検証する必要はない。
