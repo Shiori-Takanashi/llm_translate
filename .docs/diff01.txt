@@ -1,0 +1,802 @@
+diff --git a/.docs/issue/issue02.md b/.docs/issue/issue02.md
+new file mode 100644
+index 0000000..ded2cf8
+--- /dev/null
++++ b/.docs/issue/issue02.md
+@@ -0,0 +1,27 @@
++# Issue02: 設定初期化の責務を整理する
++
++## 背景
++現状、**presentation層**の`select_json()`において、
++`load_env()`と`require()`を直に呼び出している。
++
++`select_json()`はサブコマンドなので、
++そこで設定初期化を行うべきではない。
++責務が分散するからである。
++
++## 目的
++- `load_env()`はアプリ起動時に1回だけ実行する。
++- `require()`の呼び出しを**境界**に集約する。
++- applicationが担当するロジックが、環境に依存しないようにする。
++
++## 方針
++- 起動時に`AppConfig`を構築する。
++- 各コマンドに設定を注入する。
++
++## 完了条件
++- `load_env()`がコマンド関数内から削除されている。
++- アプリ起動時に**1回**のみ`load_env()`が実行される。
++- application層は`require()`を呼ばない。
++- `JSON_DIR`が未設定であるとき、エラーが明確に起きる。
++
++## スコープ外
++- `dotenv`を代替すること
+diff --git a/.docs/issue/issue03.md b/.docs/issue/issue03.md
+new file mode 100644
+index 0000000..681e682
+--- /dev/null
++++ b/.docs/issue/issue03.md
+@@ -0,0 +1,35 @@
++# Issue03: PROJECT_ROOTへの依存
++
++## 背景
++
++###  `listup_json()`について（`infra/filesys.py`）
++
++80e2d82 の時点において、
++`listup_json()`は、PROJECT_ROOTをimportして使用している。
++そこで、以下の設計原則を遵守させる。
++
++### 設計原則
++
++- 関数は外部状態に依存すべきでない。
++- application層からinfra層へDIを行うべき。
++
++## 問題点
++
++1. `PROJECT_ROOT`がグローバル定数である。
++2. `listup_json()`が暗黙で`PROJECT_ROOT`前提に動く。
++3. `listup_json()`がテストしづらい。
++
++## タスク
++
++- infra層からimportしたroot解決ロジックを、presentation層で実行。
++- `listup_json()`に`base_path`をDIする仕様に変更。
++
++## 完了条件
++
++- infra層がグローバルrootに依存しない。
++- 適切にDIを導入する。
++- `python -m llm_translate.presentation.main select-json`が従来通り作動。
++
++## スコープ外
++
++- pytestの実装は後のIssueで行う
+diff --git a/.docs/issue/issue04.md b/.docs/issue/issue04.md
+new file mode 100644
+index 0000000..fbfba05
+--- /dev/null
++++ b/.docs/issue/issue04.md
+@@ -0,0 +1,59 @@
++# Issue04: listup_json返り値のPath化
++
++## 背景
++
++PR03で`infra.filesys.listup_json()`からPROJECT_ROOT依存を排除したが、
++返り値の型は`list[str]`となっている。
++
++この結果、呼び出し側（presentation / application）が
++
++- 文字列をPathとしてみなして扱う
++- 後続処理で再度`Path`に変換する
++
++といったコードを書かざるを得ず、責務境界と抽象度が曖昧になっている。
++
++PR03内の「発見した問題点」としても、
++`listup_json() -> list[Path]` への変更が提案されている。
++
++## 問題点
++
++1. `listup_json()`の返り値が`list[str]`であり、型が**Pathそのもの**を表現していない。
++2. CLI層がPath相当の情報を文字列で扱うため、抽象度が下がる。
++3. application層・ユースケース層で「文字列 -> Path」の再変換が必要になり、重複ロジック・バグの温床となる。
++
++## 目的
++
++- `listup_json()`の返り値を`list[Path]`に変更し、
++  「ファイルパスを列挙する」という責務をinfra層に集約する。
++- presentation / application層ではPathオブジェクトをそのまま扱い、
++  表示などの都合で文字列化が必要な場合のみ変換を行うようにする。
++- レイヤーごとの抽象度と責務境界を明確にする。
++
++## 方針
++
++- `infra.filesys.listup_json()`の返り値型を`list[str]`から`list[Path]`に変更する。
++- `application.select.json_usecase.resolve_choice()`の引数・返り値の型を
++  `list[str]` / `str` から `list[Path]` / `Path` に変更する。
++- `presentation.cli.select_json.select_json()`では、
++  Pathのリストを受け取り、
++  - ユーザー表示時のみ文字列化
++  - 選択結果としてはPathをそのまま保持
++  するように修正する。
++- 既存テスト（特に `tests/application/select/test_json_usecase.py`）も
++  Path型に合わせて期待値を更新する。
++
++## 完了条件
++
++- `infra.filesys.listup_json()`の返り値が`list[Path]`となっている。
++- `application.select.json_usecase.resolve_choice()`が`list[Path]`を受け取り、`Path`を返す。
++- `presentation.cli.select_json.select_json()`が、
++  - Pathのリストを受け取り
++  - 表示時のみ文字列化している
++  ことが確認できる。
++- `tests/application/select/test_json_usecase.py`がPath型に追従しており、
++  pytestがグリーンで通る。
++
++## スコープ外
++
++- `listup_json()`の列挙ロジック自体（どのディレクトリまで探索するか等）の変更。
++- CLIインターフェースそのものの仕様変更（選択UIの変更など）。
+diff --git a/.docs/pr/pr03.md b/.docs/pr/pr03.md
+new file mode 100644
+index 0000000..715a33b
+--- /dev/null
++++ b/.docs/pr/pr03.md
+@@ -0,0 +1,91 @@
++# PR03: PROJECT_ROOT依存の解決（08fda30）
++
++## 問題の概要
++
++infra層がPROJECT_ROOT定数に直接依存していたため、
++レイヤー分離およびテスト容易性の観点から問題があった。
++その依存を除去する。
++
++## infra/filesys.py
++
++**変更前**
++```python
++from llm_translate.infra.root import PROJECT_ROOT
++def listup_json(dir_name: str) -> list[str]:
++    d_path = PROJECT_ROOT / dir_name
++```
++
++**変更後**
++```python
++def listup_json(base_path: Path, dir_name: str) -> list[str]:
++    d_path = base_path / dir_name
++```
++
++**説明**
++
++- `listup_json()`にbase_pathをDIすることでPROJECT_ROOT定数を使用することを回避。
++- これによりinfra層がグローバル状態に依存しない構造になる。
++- `select_json()`が`listup_json()`を呼び出すので、下に記す。
++
++
++
++## presentation/cli/select_json.py
++
++**変更前**
++
++```python
++@click.command(name="select-json")
++@click.pass_obj
++def select_json(config: AppConfig) -> None:
++    dir_name = config.json_dir
++    files = listup_json(dir_name)
++```
++
++**変更後**
++
++```python
++@click.command(name="select-json")
++@click.pass_obj
++def select_json(config: AppConfig) -> None:
++    dir_name = config.json_dir
++    base_path = config.base_path
++    files = listup_json(base_path, dir_name)
++```
++
++**説明**
++
++- 前提として`base_path`には実質的に**プロジェクトルートのPath**である。
++- `listup_json()`の仕様変更に伴い、`base_path`を引数として指定。
++- `base_path`をcli層で定義するのは責務の分散である。
++- `AppConfig`を通して`base_path`を`main.py`から渡すことで責務を集約。
++- これによりルート決定の責務をmainに限定できる。
++
++
++
++# 影響範囲
++
++- `listup_json()`のシグネチャ変更
++- `select_json()`の修正
++
++他モジュールへの影響は無し。
++
++
++
++# 発見した問題点
++
++## 返り値の不整合
++
++`listup_json() -> list[str]`であるから、
++選択したものを、後続する処理に使いにくい。
++なぜなら、後続処理で再度`Path`に変換する必要があるから。
++つまり、以下の設計原則に反している。
++
++## 設計原則
++
++- CLI層で抽象度が落ちている。
++- Pathを扱う責務の境界が曖昧になっている。
++
++## 解決策
++
++Issue04として問題提起して、
++`listup_json() -> list[Path]`に変更する。
+diff --git a/.docs/pr/pr04.md b/.docs/pr/pr04.md
+new file mode 100644
+index 0000000..8191902
+--- /dev/null
++++ b/.docs/pr/pr04.md
+@@ -0,0 +1,162 @@
++# PR04: listup_json返り値のPath化
++
++## 問題の概要
++
++PR03で指摘した通り、infra層の`listup_json()`は返り値の型が`list[str]`であり、
++呼び出し側（CLI層やユースケース層）でPathに再変換する必要がある設計だった。
++
++- Pathを扱う責務の境界が曖昧
++- CLI層の抽象度が下がる（文字列でPath相当を扱っている）
++
++この不整合を解消するため、Issue04として`listup_json() -> list[Path]`への変更を行った。
++
++
++## infra/filesys.py
++
++**変更前**
++```python
++from pathlib import Path
++
++
++def listup_json(base_path: Path, dir_name: str) -> list[str]:
++	d_path = base_path / dir_name
++
++	if not d_path.exists() or not d_path.is_dir():
++		raise FileNotFoundError(f"ディレクトリが見つかりません: {dir_name}")
++
++	files = [
++		str(p.relative_to(base_path / dir_name))
++		for p in d_path.rglob("*.json")
++		if p.is_file()
++	]
++
++	if not files:
++		raise FileNotFoundError("JSONファイルが見つかりません")
++
++	return sorted(files)
++```
++
++**変更後**
++```python
++from pathlib import Path
++
++
++def listup_json(base_path: Path, dir_name: str) -> list[Path]:
++	d_path = base_path / dir_name
++
++	if not d_path.exists() or not d_path.is_dir():
++		raise FileNotFoundError(f"ディレクトリが見つかりません: {dir_name}")
++
++	files = [
++		p.relative_to(d_path)
++		for p in d_path.rglob("*.json")
++		if p.is_file()
++	]
++
++	if not files:
++		raise FileNotFoundError("JSONファイルが見つかりません")
++
++	return sorted(files)
++```
++
++**説明**
++
++- 返り値を`list[str]`から`list[Path]`に変更。
++- これにより、「どの層がPathを扱うか」の責務をinfra層に集約できる。
++- 呼び出し側はPathのまま受け取り、必要に応じて文字列化するだけでよい。
++
++
++## application/select/json_usecase.py
++
++**変更前**
++```python
++def resolve_choice(files: list[str], index: int) -> str:
++	if index < 1 or index > len(files):
++		raise ValueError("選択した値が不正です。")
++
++	return files[index - 1]
++```
++
++**変更後**
++```python
++from pathlib import Path
++
++
++def resolve_choice(files: list[Path], index: int) -> Path:
++	if index < 1 or index > len(files):
++		raise ValueError("選択した値が不正です。")
++
++	return files[index - 1]
++```
++
++**説明**
++
++- `listup_json()`の返り値の型変更に追従し、`files`を`list[Path]`として扱うようにした。
++- ユースケース層ではPathそのものを扱い、具体的な文字列表現はさらに外側（CLI層）に委ねる。
++
++
++## presentation/cli/select_json.py
++
++**変更前（概略）**
++```python
++@click.command(name="select-json")
++@click.pass_obj
++def select_json(config: AppConfig) -> None:
++	dir_name = config.json_dir
++	base_path = config.base_path
++	files = listup_json(base_path, dir_name)  # list[str]
++
++	click.echo("\n翻訳対象のファイルを選択せよ:")
++	for i, p in enumerate(files, 1):
++		click.echo(f"{i}: {p}")
++
++	choice = click.prompt("番号", type=int)
++
++	selected = resolve_choice(files, choice)  # str
++
++	click.secho(f"選択されたファイル: {selected}")
++```
++
++**変更後（概略）**
++```python
++@click.command(name="select-json")
++@click.pass_obj
++def select_json(config: AppConfig) -> None:
++	dir_name = config.json_dir
++	base_path = config.base_path
++	files = listup_json(base_path, dir_name)  # list[Path]
++
++	click.echo("\n翻訳対象のファイルを選択せよ:")
++	for i, p in enumerate(files, 1):
++		click.echo(f"{i}: {p}")  # 表示時のみ文字列化
++
++	choice = click.prompt("番号", type=int)
++
++	selected = resolve_choice(files, choice)  # Path
++
++	click.secho(f"選択されたファイル: {selected}")
++```
++
++**説明**
++
++- CLI層ではPathを受け取り、ユーザー向けの表示時にのみ暗黙的に文字列化している。
++- 選択結果としてはPathを保持するため、後続処理（実際のファイル読み込みなど）で再変換が不要になる。
++- これにより、CLI層の抽象度を保ちつつ、infra/アプリケーション層でPathを一貫して扱えるようになった。
++
++
++# 影響範囲
++
++- `infra.filesys.listup_json()`の返り値型変更（`list[str]` -> `list[Path]`）
++- `application.select.json_usecase.resolve_choice()`のシグネチャ変更
++- `presentation.cli.select_json.select_json()`の呼び出し部・型整合性の修正
++- `tests/application/select/test_json_usecase.py` の期待値更新（文字列からPathオブジェクトへ）
++
++いずれもPath型への置き換えに限定されており、
++ロジック自体（選択番号の検証やファイル列挙アルゴリズム）は変更していない。
++
++
++# 設計的な効果
++
++- Pathを扱う責務がinfra/ユースケース層に集約され、CLI層の抽象度が適切に保たれる。
++- 後続処理での「文字列 -> Path」再変換が不要になり、コード量とバグ混入余地が減少。
++- PR03で指摘した「返り値の不整合」を解消し、レイヤー間の責務境界が明確になった。
+diff --git a/.gitignore b/.gitignore
+index 22ba50e..5f2a320 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -10,7 +10,6 @@ wheels/
+ .venv
+ 
+ .env.local
+-.docs/
+ .pytest_cache/
+ src/llm_translate/domain/prompt.py
+ src/llm_translate/domain/types.py
+diff --git a/data/json/001.json b/data/json/001.json
+new file mode 100644
+index 0000000..ec7376c
+--- /dev/null
++++ b/data/json/001.json
+@@ -0,0 +1,15 @@
++{
++  "lang": "de",
++  "category": "city",
++  "data": [
++    "Tokio",
++    "Delhi",
++    "Shanghai",
++    "São Paulo",
++    "Mexiko-Stadt",
++    "Kairo",
++    "Mumbai",
++    "Peking",
++    "Dhaka"
++  ]
++}
+diff --git a/data/json/002.json b/data/json/002.json
+new file mode 100644
+index 0000000..5be8819
+--- /dev/null
++++ b/data/json/002.json
+@@ -0,0 +1,15 @@
++{
++  "lang": "de",
++  "category": "country",
++  "data": [
++    "Japan",
++    "Indien",
++    "China",
++    "Brasilien",
++    "Mexiko",
++    "Ägypten",
++    "Indien",
++    "China",
++    "Bangladesch"
++  ]
++}
+diff --git a/data/json/003.json b/data/json/003.json
+new file mode 100644
+index 0000000..ee55fe1
+--- /dev/null
++++ b/data/json/003.json
+@@ -0,0 +1,15 @@
++{
++  "lang": "ja",
++  "category": "country",
++  "data": [
++    "日本",
++    "インド",
++    "中国",
++    "ブラジル",
++    "メキシコ",
++    "エジプト",
++    "インド",
++    "中国",
++    "バングラデシュ"
++  ]
++}
+diff --git a/data/json/004.json b/data/json/004.json
+new file mode 100644
+index 0000000..f7435ac
+--- /dev/null
++++ b/data/json/004.json
+@@ -0,0 +1,15 @@
++{
++  "lang": "ja",
++  "category": "city",
++  "data": [
++    "東京",
++    "デリー",
++    "上海",
++    "サンパウロ",
++    "メキシコシティ",
++    "カイロ",
++    "ムンバイ",
++    "北京",
++    "ダッカ"
++  ]
++}
+diff --git a/data/json/005.json b/data/json/005.json
+new file mode 100644
+index 0000000..48ed4b7
+--- /dev/null
++++ b/data/json/005.json
+@@ -0,0 +1,15 @@
++{
++    "lang": "en",
++    "category": "city",
++    "data": [
++        "Tokyo",
++        "Delhi",
++        "Shanghai",
++        "Sao Paulo",
++        "Mexico City",
++        "Cairo",
++        "Mumbai",
++        "Beijing",
++        "Dhaka"
++    ]
++}
+diff --git a/data/json/006.json b/data/json/006.json
+new file mode 100644
+index 0000000..b6abc85
+--- /dev/null
++++ b/data/json/006.json
+@@ -0,0 +1,15 @@
++{
++    "lang": "en",
++    "category": "country",
++    "data": [
++        "Japan",
++        "India",
++        "China",
++        "Brazil",
++        "Mexico",
++        "Egypt",
++        "India",
++        "China",
++        "Bangladesh"
++    ]
++}
+diff --git a/data/json/en/city.json b/data/json/en/city.json
+deleted file mode 100644
+index 968d111..0000000
+--- a/data/json/en/city.json
++++ /dev/null
+@@ -1,12 +0,0 @@
+-[
+-    "Tokyo",
+-    "Delhi",
+-    "Shanghai",
+-    "Sao Paulo",
+-    "Mexico City",
+-    "Cairo",
+-    "Mumbai",
+-    "Beijing",
+-    "Dhaka",
+-    "tokyo"
+-]
+diff --git a/data/json/en/country.json b/data/json/en/country.json
+deleted file mode 100644
+index 8843ebe..0000000
+--- a/data/json/en/country.json
++++ /dev/null
+@@ -1,12 +0,0 @@
+-[
+-    "Japan",
+-    "India",
+-    "China",
+-    "Brazil",
+-    "Mexico",
+-    "Egypt",
+-    "India",
+-    "China",
+-    "Bangladesh",
+-    "japan"
+-]
+diff --git a/src/llm_translate/application/config.py b/src/llm_translate/application/config.py
+index 4927e79..8e4aee0 100644
+--- a/src/llm_translate/application/config.py
++++ b/src/llm_translate/application/config.py
+@@ -1,8 +1,10 @@
+ # src/llm_translate/application/config.py
+ 
++from pathlib import Path
+ from dataclasses import dataclass
+ 
+ 
+ @dataclass
+ class AppConfig:
++    base_path: Path
+     json_dir: str
+diff --git a/src/llm_translate/application/select/json_usecase.py b/src/llm_translate/application/select/json_usecase.py
+index fd6d188..f580524 100644
+--- a/src/llm_translate/application/select/json_usecase.py
++++ b/src/llm_translate/application/select/json_usecase.py
+@@ -1,7 +1,8 @@
+ # src/llm_translate/application/select/json_usecase.py
++from pathlib import Path
+ 
+ 
+-def resolve_choice(files: list[str], index: int) -> str:
++def resolve_choice(files: list[Path], index: int) -> Path:
+     # infra/filesys.pyで、
+     # filesが空リストではないことは検証済み。
+     # だから、ここで検証する必要はない。
+diff --git a/src/llm_translate/infra/environment.py b/src/llm_translate/infra/environment.py
+index c8b13c8..3892749 100644
+--- a/src/llm_translate/infra/environment.py
++++ b/src/llm_translate/infra/environment.py
+@@ -1,29 +1,20 @@
+ # src/llm_translate/infra/environment.py
+-
+ import os
++from pathlib import Path
+ 
+-from llm_translate.infra.root import PROJECT_ROOT
+-
+-
+-def load_env() -> None:
+-    dot_env_local = PROJECT_ROOT / ".env.local"
+-    dot_env = PROJECT_ROOT / ".env"
+-
+-    env_file = None
+-    if dot_env_local.exists():
+-        env_file = dot_env_local
+-    elif dot_env.exists():
+-        env_file = dot_env
+ 
++def load_env(candidates: list[Path]) -> Path:
++    env_file = next((p for p in candidates if p.is_file()), None)
+     if env_file is None:
+-        raise FileNotFoundError("envファイルが未存在")
++        raise FileNotFoundError("envファイルが発見不能")
+ 
+     try:
+         from dotenv import load_dotenv
++    except (ImportError, ModuleNotFoundError) as e:
++        raise ImportError("python-dotenvが未インストール。") from e
+ 
+-        load_dotenv(env_file, override=False)
+-    except Exception:
+-        raise ImportError("python-dotenvが未インストール。")
++    load_dotenv(env_file, override=False)
++    return env_file
+ 
+ 
+ def require(name: str) -> str:
+diff --git a/src/llm_translate/infra/filesys.py b/src/llm_translate/infra/filesys.py
+index 720ba76..25eb9fb 100644
+--- a/src/llm_translate/infra/filesys.py
++++ b/src/llm_translate/infra/filesys.py
+@@ -1,22 +1,22 @@
+ # src/llm_translate/infra/filesys.py
+ 
+-from llm_translate.infra.root import PROJECT_ROOT
++from pathlib import Path
+ 
+ 
+-def listup_json(dir_name: str) -> list[str]:
+-    d_path = PROJECT_ROOT / dir_name
++def listup_json(base_path: Path, dir_name: str) -> list[Path]:
++    d_path = base_path / dir_name
+ 
+     if not d_path.exists() or not d_path.is_dir():
+         raise FileNotFoundError(f"ディレクトリが見つかりません: {dir_name}")
+ 
+-    files = [
+-        str(p.relative_to(PROJECT_ROOT / dir_name))
+-        for p in d_path.rglob("*.json")
+-        if p.is_file()
+-    ]
++    files = [p for p in d_path.rglob("*.json") if p.is_file()]
+ 
+     # filesは空リストではない。
+     if not files:
+         raise FileNotFoundError("JSONファイルが見つかりません")
+ 
+     return sorted(files)
++
++
++def convert_path_to_display(p: Path, base_path: Path, dir_name: str) -> str:
++    return str(p.relative_to(base_path / dir_name))
+diff --git a/src/llm_translate/infra/root.py b/src/llm_translate/infra/root.py
+index 5700a0e..ee55335 100644
+--- a/src/llm_translate/infra/root.py
++++ b/src/llm_translate/infra/root.py
+@@ -2,22 +2,15 @@
+ 
+ 
+ from pathlib import Path
+-from functools import lru_cache
+ 
+ 
+-def _find_project_root(start: Path) -> Path:
++def find_project_root(start: Path) -> Path:
+     current = start.resolve()
++    if current.is_file():
++        current = current.parent
+     while True:
+         if (current / "pyproject.toml").is_file():
+             return current
+         if current.parent == current:
+             raise FileNotFoundError("pyproject.tomlが未発見。")
+         current = current.parent
+-
+-
+-@lru_cache
+-def get_project_root() -> Path:
+-    return _find_project_root(Path(__file__).parent)
+-
+-
+-PROJECT_ROOT = get_project_root()
+diff --git a/src/llm_translate/presentation/cli/select_json.py b/src/llm_translate/presentation/cli/select_json.py
+index 09a8b6f..14bc128 100644
+--- a/src/llm_translate/presentation/cli/select_json.py
++++ b/src/llm_translate/presentation/cli/select_json.py
+@@ -2,7 +2,7 @@
+ 
+ import click
+ 
+-from llm_translate.infra.filesys import listup_json
++from llm_translate.infra.filesys import listup_json, convert_path_to_display
+ from llm_translate.application.config import AppConfig
+ from llm_translate.application.select.json_usecase import resolve_choice
+ 
+@@ -11,15 +11,20 @@ from llm_translate.application.select.json_usecase import resolve_choice
+ @click.pass_obj
+ def select_json(config: AppConfig) -> None:
+     dir_name = config.json_dir
++    base_path = config.base_path
+ 
+-    files = listup_json(dir_name)
++    # listup_jsonの返り値をココから変更
++    # filesはフルパスであるべき？
++    files = listup_json(base_path, dir_name)
+ 
+     click.echo("\n翻訳対象のファイルを選択せよ:")
+     for i, p in enumerate(files, 1):
+-        click.echo(f"{i}: {p}")
++        click.echo(f"{i}: {convert_path_to_display(p, base_path, dir_name)}")
+ 
+     choice = click.prompt("番号", type=int)
+ 
+     selected = resolve_choice(files, choice)
+ 
+-    click.secho(f"選択されたファイル: {selected}")
++    click.secho(
++        f"選択されたファイル: {convert_path_to_display(selected, base_path, dir_name)}"
++    )
+diff --git a/src/llm_translate/presentation/main.py b/src/llm_translate/presentation/main.py
+index 72115a4..8140e69 100644
+--- a/src/llm_translate/presentation/main.py
++++ b/src/llm_translate/presentation/main.py
+@@ -1,8 +1,10 @@
+ # src/llm_translate/presentation/main.py
+ 
+ import click
++from pathlib import Path
+ 
+ from llm_translate.application.config import AppConfig
++from llm_translate.infra.root import find_project_root
+ from llm_translate.infra.environment import load_env, require
+ from llm_translate.presentation.cli.select_json import select_json
+ 
+@@ -11,9 +13,10 @@ from llm_translate.presentation.cli.select_json import select_json
+ @click.pass_context
+ def main(ctx: click.Context) -> None:
+     """llm_translate CLI"""
+-    load_env()
++    root = find_project_root(Path(__file__))
++    load_env([root / ".env.local", root / ".env"])
+     json_dir = require("JSON_DIR")
+-    ctx.obj = AppConfig(json_dir=json_dir)
++    ctx.obj = AppConfig(base_path=root, json_dir=json_dir)
+ 
+ 
+ # サブコマンド登録
+diff --git a/tests/application/select/test_json_usecase.py b/tests/application/select/test_json_usecase.py
+index 5aff565..67cac32 100644
+--- a/tests/application/select/test_json_usecase.py
++++ b/tests/application/select/test_json_usecase.py
+@@ -3,11 +3,13 @@ import pytest
+ from llm_translate.application.select.json_usecase import resolve_choice
+ 
+ 
+-def test_resolve_choice_valid():
+-    files = ["a.json", "b.json"]
+-    assert resolve_choice(files, 1) == "a.json"
++def test_resolve_choice_valid(tmp_path):
++    tmp_path.mkdir(exist_ok=True)
++    files = [tmp_path / name for name in ["a.json", "b.json"]]
++    assert resolve_choice(files, 1) == tmp_path / "a.json"
+ 
+ 
+-def test_resolve_choice_invalid():
++def test_resolve_choice_invalid(tmp_path):
++    tmp_path.mkdir(exist_ok=True)
+     with pytest.raises(ValueError):
+-        resolve_choice(["a.json"], 2)
++        resolve_choice([tmp_path / name for name in ["a.json", "b.json"]], 3)
