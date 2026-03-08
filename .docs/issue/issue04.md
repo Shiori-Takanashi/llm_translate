@@ -3,7 +3,7 @@
 ## 背景
 
 PR03で`infra.filesys.listup_json()`からPROJECT_ROOT依存を排除したが、
-依然として返り値の型は`list[str]`となっている。
+返り値の型は`list[str]`となっている。
 
 この結果、呼び出し側（presentation / application）が
 
